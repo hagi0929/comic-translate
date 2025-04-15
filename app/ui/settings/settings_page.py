@@ -1,6 +1,32 @@
 import os, shutil
 from typing import List
-from env_loader import load_toml_env
+import os, tomllib
+from pathlib import Path
+
+def load_toml_env(toml_path: str | Path = "settings.env.toml") -> None:
+    """Read TOML file and push every leaf node into os.environ.
+
+    Nested keys are flattened with double‑underscores:
+        [credentials.microsoft_azure]
+        api_key_ocr = "abc"
+    becomes
+        CREDENTIALS__MICROSOFT_AZURE__API_KEY_OCR = "abc"
+    """
+    path = Path(toml_path)
+    if not path.exists():
+        return
+
+    def _walk(node, prefix=""):
+        for k, v in node.items():
+            key = f"{prefix}__{k}".upper() if prefix else k.upper()
+            if isinstance(v, dict):
+                _walk(v, key)
+            else:
+                # keep existing env‑var if already set (e.g. real OS env wins)
+                os.environ.setdefault(key, str(v))
+
+    with path.open("rb") as f:
+        _walk(tomllib.load(f))
 
 # Promote TOML values → os.environ *once* when this module is imported
 load_toml_env()                       # defaults to "settings.env.toml"
@@ -65,7 +91,7 @@ class SettingsPage:
         def _svc(s):
             base = f"CREDENTIALS__{s.upper().replace(' ', '_')}"
             env = os.getenv
-            if s == "Microsoft Azure":
+            if s == "Azure":
                 return {
                     "api_key_ocr":       env(f"{base}__API_KEY_OCR", ""),
                     "api_key_translator":env(f"{base}__API_KEY_TRANSLATOR", ""),
@@ -90,7 +116,7 @@ class SettingsPage:
             return _svc(service)
         else:
             # enumerate the services you care about
-            services = ["Microsoft Azure", "Custom", "Yandex"]
+            services = ["Gemini"]
             return {s: _svc(s) for s in services}
 
     # ---------- convenience -----------
