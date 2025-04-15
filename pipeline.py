@@ -45,15 +45,15 @@ class ComicTranslatePipeline:
         total_images = len(self.main_page.image_files)
 
         for index, image_path in enumerate(self.main_page.image_files):
-
+            print(index)
             # index, step, total_steps, change_name
-            self.main_page.progress_update.emit(index, total_images, 0, 10, True)
+            # self.main_page.progress_update.emit(index, total_images, 0, 10, True)
 
             settings_page = self.main_page.settings_page
-            source_lang = self.main_page.image_states[image_path]['source_lang']
-            target_lang = self.main_page.image_states[image_path]['target_lang']
+            source_lang = "Japanese"
+            target_lang = "Korean"
 
-            target_lang_en = self.main_page.lang_mapping.get(target_lang, None)
+            target_lang_en = "Korean" # self.main_page.lang_mapping.get(target_lang, None)
             trg_lng_cd = get_language_code(target_lang_en)
             
             base_name = os.path.splitext(os.path.basename(image_path))[0]
@@ -73,20 +73,20 @@ class ComicTranslatePipeline:
             image = cv2.imread(image_path)
 
             # Text Block Detection
-            self.main_page.progress_update.emit(index, total_images, 1, 10, False)
-            if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                self.main_page.current_worker = None
-                break
+            # self.main_page.progress_update.emit(index, total_images, 1, 10, False)
+            # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+            #     self.main_page.current_worker = None
+            #     break
 
             if self.block_detector_cache is None:
                 self.block_detector_cache = TextBlockDetector(self.main_page.settings_page)
             
             blk_list = self.block_detector_cache.detect(image)
 
-            self.main_page.progress_update.emit(index, total_images, 2, 10, False)
-            if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                self.main_page.current_worker = None
-                break
+            # self.main_page.progress_update.emit(index, total_images, 2, 10, False)
+            # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+            #     self.main_page.current_worker = None
+            #     break
 
             if not blk_list:
                 self.skip_save(directory, timestamp, base_name, extension, archive_bname, image)
@@ -122,10 +122,10 @@ class ComicTranslatePipeline:
             config = get_config(settings_page)
             mask = generate_mask(image, blk_list)
 
-            self.main_page.progress_update.emit(index, total_images, 4, 10, False)
-            if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                self.main_page.current_worker = None
-                break
+            # self.main_page.progress_update.emit(index, total_images, 4, 10, False)
+            # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+            #     self.main_page.current_worker = None
+            #     break
 
             inpaint_input_img = self.inpainter_cache(image, mask, config)
             inpaint_input_img = cv2.convertScaleAbs(inpaint_input_img)
@@ -133,7 +133,7 @@ class ComicTranslatePipeline:
             # Saving cleaned image
             self.main_page.image_history[image_path] = [image_path]
             self.main_page.current_history_index[image_path] = 0
-            self.main_page.image_processed.emit(index, inpaint_input_img, image_path)
+            # self.main_page.image_processed.emit(index, inpaint_input_img, image_path)
 
             inpaint_input_img = cv2.cvtColor(inpaint_input_img, cv2.COLOR_BGR2RGB)
 
@@ -143,10 +143,10 @@ class ComicTranslatePipeline:
                     os.makedirs(path, exist_ok=True)
                 cv2.imwrite(os.path.join(path, f"{base_name}_cleaned{extension}"), inpaint_input_img)
 
-            self.main_page.progress_update.emit(index, total_images, 5, 10, False)
-            if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                self.main_page.current_worker = None
-                break
+            # self.main_page.progress_update.emit(index, total_images, 5, 10, False)
+            # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+            #     self.main_page.current_worker = None
+            #     break
 
             # Get Translations/ Export if selected
             extra_context = settings_page.get_llm_settings()['extra_context']
@@ -218,21 +218,21 @@ class ComicTranslatePipeline:
             bold = render_settings.bold
             italic = render_settings.italic
             underline = render_settings.underline
-            alignment_id = render_settings.alignment_id
-            alignment = self.main_page.button_to_alignment[alignment_id]
+            # alignment_id = render_settings.alignment_id
+            # alignment = self.main_page.button_to_alignment[alignment_id]
             direction = render_settings.direction
-                
             text_items_state = []
             for blk in blk_list:
                 x1, y1, width, height = blk.xywh
 
                 translation = blk.translation
+                print(translation)
                 if not translation or len(translation) == 1:
                     continue
 
                 translation, font_size = pyside_word_wrap(translation, font, width, height,
                                                         line_spacing, outline_width, bold, italic, underline,
-                                                        alignment, direction, max_font_size, min_font_size)
+                                                        "alignment", direction, max_font_size, min_font_size)
                 
                 # Display text if on current page
                 if index == self.main_page.curr_img_idx:
@@ -246,7 +246,7 @@ class ComicTranslatePipeline:
                 'font_family': font,
                 'font_size': font_size,
                 'text_color': font_color,
-                'alignment': alignment,
+                # 'alignment': alignment,
                 'line_spacing': line_spacing,
                 'outline_color': outline_color,
                 'outline_width': outline_width,
@@ -291,8 +291,8 @@ class ComicTranslatePipeline:
             viewer_state = self.main_page.image_states[image_path]['viewer_state']
             renderer.add_state_to_image(viewer_state)
             renderer.save_image(sv_pth)
-
-            self.main_page.progress_update.emit(index, total_images, 10, 10, False)
+            print("done")
+            # self.main_page.progress_update.emit(index, total_images, 10, 10, False)
 
         archive_info_list = self.main_page.file_handler.archive_info
         if archive_info_list:
@@ -300,10 +300,10 @@ class ComicTranslatePipeline:
             for archive_index, archive in enumerate(archive_info_list):
                 archive_index_input = total_images + archive_index
 
-                self.main_page.progress_update.emit(archive_index_input, total_images, 1, 3, True)
-                if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                    self.main_page.current_worker = None
-                    break
+                # self.main_page.progress_update.emit(archive_index_input, total_images, 1, 3, True)
+                # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+                #     self.main_page.current_worker = None
+                #     break
 
                 archive_path = archive['archive_path']
                 archive_ext = os.path.splitext(archive_path)[1]
@@ -314,20 +314,20 @@ class ComicTranslatePipeline:
                 save_dir = os.path.join(archive_directory, f"comic_translate_{timestamp}", "translated_images", archive_bname)
                 check_from = os.path.join(archive_directory, f"comic_translate_{timestamp}")
 
-                self.main_page.progress_update.emit(archive_index_input, total_images, 2, 3, True)
-                if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                    self.main_page.current_worker = None
-                    break
+                # self.main_page.progress_update.emit(archive_index_input, total_images, 2, 3, True)
+                # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+                #     self.main_page.current_worker = None
+                #     break
 
                 # Create the new archive
                 output_base_name = f"{archive_bname}"
                 make(save_as_ext=save_as_ext, input_dir=save_dir, 
                     output_dir=archive_directory, output_base_name=output_base_name)
 
-                self.main_page.progress_update.emit(archive_index_input, total_images, 3, 3, True)
-                if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-                    self.main_page.current_worker = None
-                    break
+                # self.main_page.progress_update.emit(archive_index_input, total_images, 3, 3, True)
+                # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+                #     self.main_page.current_worker = None
+                #     break
 
                 # Clean up temporary 
                 if os.path.exists(save_dir):

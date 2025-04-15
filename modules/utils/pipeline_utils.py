@@ -50,9 +50,9 @@ inpaint_map = {
 
 def get_config(settings_page):
     strategy_settings = settings_page.get_hd_strategy_settings()
-    if strategy_settings['strategy'] == settings_page.ui.tr("Resize"):
+    if strategy_settings['strategy'] == "Resize":
         config = Config(hd_strategy="Resize", hd_strategy_resize_limit = strategy_settings['resize_limit'])
-    elif strategy_settings['strategy'] == settings_page.ui.tr("Crop"):
+    elif strategy_settings['strategy'] == "Crop":
         config = Config(hd_strategy="Crop", hd_strategy_crop_margin = strategy_settings['crop_margin'],
                         hd_strategy_crop_trigger_size = strategy_settings['crop_trigger_size'])
     else:

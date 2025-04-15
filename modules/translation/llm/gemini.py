@@ -28,7 +28,7 @@ class GeminiTranslation(BaseLLMTranslation):
         super().initialize(settings, source_lang, target_lang, **kwargs)
         
         self.model_name = model_name
-        credentials = settings.get_credentials(settings.ui.tr('Google Gemini'))
+        credentials = settings.get_credentials('Gemini')
         self.api_key = credentials.get('api_key', '')
         
         # Map friendly model name to API model name
@@ -108,7 +108,7 @@ class GeminiTranslation(BaseLLMTranslation):
         
         # Extract text from response
         response_data = response.json()
-        print(payload)
+        # print(payload["candidates"])
         print("hello ---------------")
         print(response_data)
         try:

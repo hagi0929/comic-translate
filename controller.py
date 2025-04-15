@@ -5,12 +5,13 @@ import cv2, shutil
 import tempfile
 import numpy as np
 import copy
+
+from app.ui.settings.settings_page import SettingsPage
 # from typing import Callable, Tuple, List
 # from dataclasses import asdict, is_dataclass
 #
 from modules.detection.utils.general import do_rectangles_overlap, get_inpaint_bboxes
 from modules.utils.textblock import TextBlock
-from modules.rendering.render import manual_wrap
 from modules.utils.file_handler import FileHandler
 from modules.utils.pipeline_utils import font_selected, validate_settings, get_layout_direction, \
                                          validate_ocr, validate_translator, get_language_code
@@ -37,7 +38,12 @@ class ComicTranslate:
         self.current_history_index = {}  # Current position in the history for each image
         self.displayed_images = set()  # Set to track displayed images
 
-
+        self.settings_page = SettingsPage()
+        self.lang_mapping = {
+            "English": "English",
+            "Korean": "Korean",
+            "Japanese": "Japanese",
+        }
         self.curr_tblock = None
         self.curr_tblock_item = None
 
@@ -125,3 +131,23 @@ class ComicTranslate:
         self.pipeline.batch_process()
 
 
+    def render_settings(self) -> TextRenderingSettings:
+        target_lang = "Korean" # self.image_states[self.image_files[0]]['target_lang']
+        direction = get_layout_direction(target_lang)
+
+        return TextRenderingSettings(
+            alignment_id = 0,
+            font_family = "Noto Sans",
+            min_font_size = 25,
+            max_font_size = 40,
+            color = "black",
+            upper_case = False,
+            outline = True,
+            outline_color = "white",
+            outline_width = "1.5",
+            bold = True,
+            italic = False,
+            underline = False,
+            line_spacing = "1",
+            direction = direction
+        )

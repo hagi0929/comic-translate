@@ -54,22 +54,7 @@ class Translator:
         Returns:
             Standard translator key
         """
-        translator_map = {
-            self.settings.ui.tr("Custom"): "Custom",
-            self.settings.ui.tr("Deepseek-v3"): "Deepseek-v3",
-            self.settings.ui.tr("GPT-4o"): "GPT-4o",
-            self.settings.ui.tr("GPT-4o mini"): "GPT-4o mini",
-            self.settings.ui.tr("Claude-3-Opus"): "Claude-3-Opus",
-            self.settings.ui.tr("Claude-3.7-Sonnet"): "Claude-3.7-Sonnet",
-            self.settings.ui.tr("Claude-3.5-Haiku"): "Claude-3.5-Haiku",
-            self.settings.ui.tr("Gemini-2.0-Flash"): "Gemini-2.0-Flash",
-            self.settings.ui.tr("Gemini-2.0-Pro"): "Gemini-2.0-Pro",
-            self.settings.ui.tr("Google Translate"): "Google Translate",
-            self.settings.ui.tr("Microsoft Translator"): "Microsoft Translator",
-            self.settings.ui.tr("DeepL"): "DeepL",
-            self.settings.ui.tr("Yandex"): "Yandex"
-        }
-        return translator_map.get(localized_translator, localized_translator)
+        return localized_translator
     
     def _get_english_lang(self, main_page, translated_lang: str) -> str:
         """

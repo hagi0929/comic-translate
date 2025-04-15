@@ -203,7 +203,7 @@ def pyside_word_wrap(text: str, font_input: str, roi_width: int, roi_height: int
         block_format = QTextBlockFormat()
         spacing = line_spacing * 100
         block_format.setLineHeight(spacing, QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
-        block_format.setAlignment(alignment)
+        # block_format.setAlignment(alignment)
         cursor.mergeBlockFormat(block_format)
         
         # Get the size of the document
@@ -261,22 +261,22 @@ def pyside_word_wrap(text: str, font_input: str, roi_width: int, roi_height: int
 
     return mutable_message, font_size
 
-def manual_wrap(main_page, blk_list: List[TextBlock], font_family: str, line_spacing, 
-                outline_width, bold, italic, underline, alignment, direction, 
-                init_font_size: int = 40, min_font_size: int = 10):
-    
-    for blk in blk_list:
-        x1, y1, width, height = blk.xywh
-
-        translation = blk.translation
-        if not translation or len(translation) == 1:
-            continue
-
-        translation, font_size = pyside_word_wrap(translation, font_family, width, height,
-                                                 line_spacing, outline_width, bold, italic, underline,
-                                                 alignment, direction, init_font_size, min_font_size)
-        
-        main_page.blk_rendered.emit(translation, font_size, blk)
+# def manual_wrap(main_page, blk_list: List[TextBlock], font_family: str, line_spacing,
+#                 outline_width, bold, italic, underline, alignment, direction,
+#                 init_font_size: int = 40, min_font_size: int = 10):
+#
+#     for blk in blk_list:
+#         x1, y1, width, height = blk.xywh
+#
+#         translation = blk.translation
+#         if not translation or len(translation) == 1:
+#             continue
+#
+#         translation, font_size = pyside_word_wrap(translation, font_family, width, height,
+#                                                  line_spacing, outline_width, bold, italic, underline,
+#                                                  alignment, direction, init_font_size, min_font_size)
+#
+#         main_page.blk_rendered.emit(translation, font_size, blk)
 
 
 
