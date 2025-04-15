@@ -3,7 +3,6 @@ import cv2, shutil
 from datetime import datetime
 from typing import List
 
-from app.ui.canvas.save_renderer import ImageSaveRenderer
 from modules.detection.processor import TextBlockDetector
 from modules.ocr.processor import OCRProcessor
 from modules.translation.processor import Translator
@@ -27,12 +26,104 @@ class ComicTranslatePipeline:
         self.ocr = OCRProcessor()
         self.rectangles_map = {}
 
+    def load_box_coords(self, blk_list: List[TextBlock]):
+        self.rectangles = []
+        if self.main_page.image_viewer.hasPhoto() and blk_list:
+            for blk in blk_list:
+                x1, y1, x2, y2 = blk.xyxy
+                coords = [x1, y1, x2, y2]
+                self.rectangles.append(coords)
+
+            rect = self.main_page.find_corresponding_rect(self.main_page.blk_list[0], 0.5)
+            self.main_page.image_viewer.select_rectangle(rect)
+            self.main_page.set_tool('box')
+
+    def detect_blocks(self, load_rects=True):
+        if self.main_page.image_viewer.hasPhoto():
+            if self.block_detector_cache is None:
+                self.block_detector_cache = TextBlockDetector(self.main_page.settings_page)
+            image = self.main_page.image_viewer.get_cv2_image()
+            blk_list = self.block_detector_cache.detect(image)
+
+            return blk_list, load_rects
+
+    def on_blk_detect_complete(self, result): 
+        blk_list, load_rects = result
+        source_lang = self.main_page.s_combo.currentText()
+        source_lang_english = self.main_page.lang_mapping.get(source_lang, source_lang)
+        rtl = True if source_lang_english == 'Japanese' else False
+        blk_list = sort_blk_list(blk_list, rtl)
+        self.main_page.blk_list = blk_list
+        if load_rects:
+            self.load_box_coords(blk_list)
+
+
+    def manual_inpaint(self):
+        image_viewer = self.main_page.image_viewer
+        settings_page = self.main_page.settings_page
+        mask = image_viewer.get_mask_for_inpainting()
+        image = image_viewer.get_cv2_image()
+
+        if self.inpainter_cache is None or self.cached_inpainter_key != settings_page.get_tool_selection('inpainter'):
+            device = 'cuda' if settings_page.is_gpu_enabled() else 'cpu'
+            inpainter_key = settings_page.get_tool_selection('inpainter')
+            InpainterClass = inpaint_map[inpainter_key]
+            self.inpainter_cache = InpainterClass(device)
+            self.cached_inpainter_key = inpainter_key
+
+        config = get_config(settings_page)
+        inpaint_input_img = self.inpainter_cache(image, mask, config)
+        inpaint_input_img = cv2.convertScaleAbs(inpaint_input_img) 
+
+        return inpaint_input_img
+    
+    def inpaint_complete(self, result):
+        inpainted, original_image = result
+        self.main_page.set_cv2_image(inpainted)
+        # get_best_render_area(self.main_page.blk_list, original_image, inpainted)
+    
+    def inpaint(self):
+        image = self.main_page.image_viewer.get_cv2_image()
+        inpainted = self.manual_inpaint()
+        return inpainted, image
+    
     def get_selected_block(self):
         rect = self.main_page.image_viewer.selected_rect
         srect = rect.mapRectToScene(rect.rect())
         srect_coords = srect.getCoords()
         blk = self.main_page.find_corresponding_text_block(srect_coords)
         return blk
+
+    def OCR_image(self, single_block=False):
+        source_lang = self.main_page.s_combo.currentText()
+        if self.main_page.image_viewer.hasPhoto() and self.rectangles:
+            image = self.main_page.image_viewer.get_cv2_image()
+            self.ocr.initialize(self.main_page, source_lang)
+            if single_block:
+                blk = self.get_selected_block()
+                self.ocr.process(image, [blk])
+            else:
+                self.ocr.process(image, self.main_page.blk_list)
+                print("Block Length: ", len(self.main_page.blk_list))
+
+    def translate_image(self, single_block=False):
+        source_lang = self.main_page.s_combo.currentText()
+        target_lang = self.main_page.t_combo.currentText()
+        if self.main_page.image_viewer.hasPhoto() and self.main_page.blk_list:
+            settings_page = self.main_page.settings_page
+            image = self.main_page.image_viewer.get_cv2_image()
+            extra_context = settings_page.get_llm_settings()['extra_context']
+
+            upper_case = settings_page.ui.uppercase_checkbox.isChecked()
+
+            translator = Translator(self.main_page, source_lang, target_lang)
+            if single_block:
+                blk = self.get_selected_block()
+                translator.translate([blk], image, extra_context)
+                set_upper_case([blk], upper_case)
+            else:
+                translator.translate(self.main_page.blk_list, image, extra_context)
+                set_upper_case(self.main_page.blk_list, upper_case)
 
     def skip_save(self, directory, timestamp, base_name, extension, archive_bname, image):
         path = os.path.join(directory, f"comic_translate_{timestamp}", "translated_images", archive_bname)
@@ -186,23 +277,24 @@ class ComicTranslatePipeline:
                 self.log_skipped_image(directory, timestamp, image_path)
                 continue
 
-            # if export_settings['export_raw_text']:
-            #     path = os.path.join(directory, f"comic_translate_{timestamp}", "raw_texts", archive_bname)
-            #     if not os.path.exists(path):
-            #         os.makedirs(path, exist_ok=True)
-            #     file = open(os.path.join(path, os.path.splitext(os.path.basename(image_path))[0] + "_raw.txt"), 'w', encoding='UTF-8')
-            #     file.write(entire_raw_text)
-            #
-            # if export_settings['export_translated_text']:
-            #     path = os.path.join(directory, f"comic_translate_{timestamp}", "translated_texts", archive_bname)
-            #     if not os.path.exists(path):
-            #         os.makedirs(path, exist_ok=True)
-            #     file = open(os.path.join(path, os.path.splitext(os.path.basename(image_path))[0] + "_translated.txt"), 'w', encoding='UTF-8')
-            #     file.write(entire_translated_text)
+            if export_settings['export_raw_text']:
+                path = os.path.join(directory, f"comic_translate_{timestamp}", "raw_texts", archive_bname)
+                if not os.path.exists(path):
+                    os.makedirs(path, exist_ok=True)
+                file = open(os.path.join(path, os.path.splitext(os.path.basename(image_path))[0] + "_raw.txt"), 'w', encoding='UTF-8')
+                file.write(entire_raw_text)
 
-            # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-            #     self.main_page.current_worker = None
-            #     break
+            if export_settings['export_translated_text']:
+                path = os.path.join(directory, f"comic_translate_{timestamp}", "translated_texts", archive_bname)
+                if not os.path.exists(path):
+                    os.makedirs(path, exist_ok=True)
+                file = open(os.path.join(path, os.path.splitext(os.path.basename(image_path))[0] + "_translated.txt"), 'w', encoding='UTF-8')
+                file.write(entire_translated_text)
+
+            self.main_page.progress_update.emit(index, total_images, 7, 10, False)
+            if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+                self.main_page.current_worker = None
+                break
 
             # Text Rendering
             render_settings = self.main_page.render_settings()
@@ -272,10 +364,10 @@ class ComicTranslatePipeline:
                 'text_items_state': text_items_state
                 })
             
-            # self.main_page.progress_update.emit(index, total_images, 9, 10, False)
-            # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
-            #     self.main_page.current_worker = None
-            #     break
+            self.main_page.progress_update.emit(index, total_images, 9, 10, False)
+            if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
+                self.main_page.current_worker = None
+                break
 
             # Saving blocks with texts to history
             self.main_page.image_states[image_path].update({

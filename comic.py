@@ -3,8 +3,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtCore import QSettings, QTranslator, QLocale
 from PySide6.QtWidgets import QApplication  
 from controller import ComicTranslate
-from app.translations import ct_translations
-from app import icon_resource
+
 
 def main():
     if sys.platform == "win32":
