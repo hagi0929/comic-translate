@@ -3,10 +3,13 @@ import cv2, shutil
 from datetime import datetime
 from typing import List
 
-from app.ui.canvas.save_renderer import ImageSaveRenderer
+from PySide6.QtGui import QColor
+
 from modules.detection.processor import TextBlockDetector
 from modules.ocr.processor import OCRProcessor
 from modules.translation.processor import Translator
+from modules.utils.save_renderer import ImageSaveRenderer
+from modules.utils.text_item import OutlineInfo, OutlineType
 from modules.utils.textblock import TextBlock, sort_blk_list
 from modules.utils.pipeline_utils import inpaint_map, get_config
 from modules.rendering.render import get_best_render_area, pyside_word_wrap
@@ -26,13 +29,6 @@ class ComicTranslatePipeline:
         self.cached_inpainter_key = None
         self.ocr = OCRProcessor()
         self.rectangles_map = {}
-
-    def get_selected_block(self):
-        rect = self.main_page.image_viewer.selected_rect
-        srect = rect.mapRectToScene(rect.rect())
-        srect_coords = srect.getCoords()
-        blk = self.main_page.find_corresponding_text_block(srect_coords)
-        return blk
 
     def skip_save(self, directory, timestamp, base_name, extension, archive_bname, image):
         path = os.path.join(directory, f"comic_translate_{timestamp}", "translated_images", archive_bname)

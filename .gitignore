@@ -8,7 +8,7 @@ __pycache__/
 /app/icons
 
 # Environments
-.env
+settings.env.toml
 .venv
 env/
 venv/
