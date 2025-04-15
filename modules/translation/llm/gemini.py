@@ -90,9 +90,7 @@ class GeminiTranslation(BaseLLMTranslation):
             }],
             "generationConfig": generation_config,
             "safetySettings": safety_settings
-        }
-        
-        # Add system instructions if provided
+        }        # Add system instructions if provided
         if system_prompt:
             payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
         
@@ -110,7 +108,9 @@ class GeminiTranslation(BaseLLMTranslation):
         
         # Extract text from response
         response_data = response.json()
-        
+        print(payload)
+        print("hello ---------------")
+        print(response_data)
         try:
             # Extract the generated text from the response
             candidates = response_data.get("candidates", [])
@@ -125,7 +125,7 @@ class GeminiTranslation(BaseLLMTranslation):
             for part in parts:
                 if "text" in part:
                     result += part["text"]
-            
+            print(result)
             return result
         except (KeyError, IndexError) as e:
             raise Exception(f"Failed to parse API response: {str(e)}")

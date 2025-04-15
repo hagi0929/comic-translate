@@ -54,9 +54,10 @@ class OCRProcessor:
         try:
             # Get appropriate OCR engine from factory
             engine = OCRFactory.create_engine(self.settings, self.source_lang_english, self.ocr_key)
-            
+            res = engine.process_image(img, blk_list)
+            print(res)
             # Process image with selected engine
-            return engine.process_image(img, blk_list)
+            return res
         
         except Exception as e:
             print(f"OCR processing error: {str(e)}")
