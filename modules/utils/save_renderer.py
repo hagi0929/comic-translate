@@ -1,111 +1,128 @@
-from PySide6 import QtCore, QtGui, QtWidgets
+from __future__ import annotations
+from typing import List, Dict, Any
 import cv2
 import numpy as np
-from .text_item import TextBlockItem
+from PIL import Image, ImageDraw, ImageFont, ImageOps, features
+
+def _load_font(family: str | None, size: int, bold: bool, italic: bool) -> ImageFont.FreeTypeFont:
+    """
+    Very small helper that tries to find a reasonable TTF on the system.
+    For real projects you’d map (family, bold, italic) → specific font files.
+    """
+    if family is None:
+        family = "arial.ttf"            # Windows & macOS
+    try:
+        return ImageFont.truetype(family, size)
+    except OSError:
+        # last‑ditch fallback: Pillow’s built‑in bitmap font
+        return ImageFont.load_default()
+
+_supports_direction = features.check("raqm")
+
+
 
 class ImageSaveRenderer:
     def __init__(self, cv2_image):
-        self.cv2_image = cv2_image
-        self.scene = QtWidgets.QGraphicsScene()
+        self._base_rgb = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGBA)
+        self._text_blocks: List[Dict[str, Any]] = []
 
-        self.qimage = self.cv2_to_qimage(cv2_image)
-        # Create a QGraphicsPixmapItem with the QPixmap
-        self.pixmap = QtGui.QPixmap.fromImage(self.qimage)
-        self.pixmap_item = QtWidgets.QGraphicsPixmapItem(self.pixmap)
+    def _draw_text_block(self, canvas: Image.Image, block: Dict[str, Any], sf: int) -> None:
+        """
+        Renders a single text block onto *canvas* (a Pillow Image).
+        • Handles line spacing, alignment, outline, rotation, scaling.
+        • Ignores features that don’t make sense outside Qt (selection outlines, transform origin).
+        """
+        text = block["text"]
+        font_size = int(block.get("font_size", 20) * sf * block.get("scale", 1.0))
+        font_family = block.get("font_family")
+        bold = block.get("bold", False)
+        italic = block.get("italic", False)
+        underline = block.get("underline", False)  # underline is ignored here
+        align = block.get("alignment", "left")  # 'left'|'center'|'right'
+        line_sp = block.get("line_spacing", 1.0)
+        direction = block.get("direction", "ltr")
+        outline_w = int(block.get("outline_width", 0) * sf)
+        outline_col = tuple(block.get("outline_color", (0, 0, 0)))
+        fill_col = tuple(block.get("text_color", (255, 255, 255)))
+        rotation = block.get("rotation", 0.0)
+        pos_x, pos_y = [int(v * sf) for v in block.get("position", (0, 0))]
 
-        # Set scene size to match image
-        self.scene.setSceneRect(0, 0, self.qimage.width(), self.qimage.height())
+        # Prepare a transparent layer for the text (makes rotation easier)
+        font = _load_font(font_family, font_size, bold, italic)
+        draw_dummy = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+        bbox = draw_dummy.multiline_textbbox((0, 0), text, font=font, spacing=(line_sp - 1) * font_size)
+        text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-        # Add QGraphicsPixmapItem to the scene
-        self.scene.addItem(self.pixmap_item)
+        layer = Image.new("RGBA", (int(text_w + 2 * outline_w), int(text_h + 2 * outline_w)), (0, 0, 0))
+        draw = ImageDraw.Draw(layer)
 
+        # Alignment offset inside the layer
+        offset_x = {
+            "left": 0,
+            "center": (layer.width - text_w) // 2,
+            "right": layer.width - text_w,
+        }.get(align, 0)
+        offset_y = 0
 
-    def cv2_to_qimage(self, cv2_img):
-        # Convert BGR to RGB
-        rgb_image = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
-        height, width, channel = rgb_image.shape
-        bytes_per_line = channel * width
-        return QtGui.QImage(rgb_image.data, width, height, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
+        # # Outline (simple 8‑direction stroke)
+        # if outline_w > 0:
+        #     for dx in range(-outline_w, outline_w + 1):
+        #         for dy in range(-outline_w, outline_w + 1):
+        #             if dx * dx + dy * dy <= outline_w * outline_w:
+        #                 draw.multiline_text(
+        #                     (offset_x + dx, offset_y + dy),
+        #                     text,
+        #                     font=font,
+        #                     fill=outline_col + (255,),
+        #                     spacing=(line_sp - 1) * font_size,
+        #                     align=align,
+        #                     # direction=direction,
+        #                 )
+
+        # Main fill
+        draw.multiline_text(
+            (offset_x, offset_y),
+            text,
+            font=font,
+            fill=fill_col + (255,),
+            spacing=(line_sp - 1) * font_size,
+            align=align,
+            # direction=direction,
+        )
+
+        # Rotate if needed
+        if rotation:
+            layer = layer.rotate(-rotation, resample=Image.Resampling.BICUBIC, expand=True)
+
+        # Paste onto the big canvas
+        canvas.alpha_composite(layer, dest=(pos_x - layer.width // 2, pos_y - layer.height // 2))
 
     def add_state_to_image(self, state):
+        """Collect text blocks for later rendering."""
+        self._text_blocks.extend(state.get("text_items_state", []))
 
-        for text_block in state.get('text_items_state', []):
-            text_item = TextBlockItem(
-                text=text_block['text'],
-                parent_item = self.pixmap_item,
-                font_family=text_block['font_family'],
-                font_size=text_block['font_size'],
-                render_color=text_block['text_color'],
-                alignment=text_block['alignment'],
-                line_spacing=text_block['line_spacing'],
-                outline_color=text_block['outline_color'],
-                outline_width=text_block['outline_width'],
-                bold=text_block['bold'],
-                italic=text_block['italic'],
-                underline=text_block['underline'],
-            )
+    def render_to_image(self, scale_factor: int = 1):
+        """
+        Draw all collected text blocks at *scale_factor*× resolution,
+        then downsample for smoother edges.
+        Returns an **OpenCV BGR** image.
+        """
+        # 1. Upscale base image for nicer antialiasing
+        h, w = self._base_rgb.shape[:2]
+        big = Image.fromarray(self._base_rgb).resize(
+            (w * scale_factor, h * scale_factor),
+            resample=Image.Resampling.LANCZOS,
+        )
 
-            text_item.set_text(text_block['text'], text_block['width'])
-            if 'direction' in text_block:
-                text_item.set_direction(text_block['direction'])
-            if text_block['transform_origin']:
-                text_item.setTransformOriginPoint(QtCore.QPointF(*text_block['transform_origin']))
-            text_item.setPos(QtCore.QPointF(*text_block['position']))
-            text_item.setRotation(text_block['rotation'])
-            text_item.setScale(text_block['scale'])
-            text_item.selection_outlines = text_block['selection_outlines']
-            text_item.update()
+        # 2. Draw each block
+        for block in self._text_blocks:
+            self._draw_text_block(big, block, scale_factor)
 
-            self.scene.addItem(text_item)
+        # 3. Downscale back to original size
+        small = big.resize((w, h), resample=Image.Resampling.LANCZOS)
 
-    def render_to_image(self):
-        # Create a high-resolution QImage
-        scale_factor = 2  # Increase this for higher resolution
-        original_size = self.pixmap.size()
-        scaled_size = original_size * scale_factor
-        
-        qimage = QtGui.QImage(scaled_size, QtGui.QImage.Format.Format_ARGB32)
-        qimage.fill(QtCore.Qt.transparent)
-
-        # Create a QPainter with antialiasing
-        painter = QtGui.QPainter(qimage)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing, True)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
-
-        # Render the scene
-        self.scene.render(painter)
-        painter.end()
-
-        # Scale down the image to the original size
-        qimage = qimage.scaled(original_size, 
-                            QtCore.Qt.AspectRatioMode.KeepAspectRatio, 
-                            QtCore.Qt.TransformationMode.SmoothTransformation)
-
-        # Convert QImage to cv2 image
-        qimage = qimage.convertToFormat(QtGui.QImage.Format.Format_RGB888)
-        width = qimage.width()
-        height = qimage.height()
-        bytes_per_line = qimage.bytesPerLine()
-
-        byte_count = qimage.sizeInBytes()
-        expected_size = height * bytes_per_line  # bytes per line can include padding
-
-        if byte_count != expected_size:
-            print(f"QImage sizeInBytes: {byte_count}, Expected size: {expected_size}")
-            print(f"Image dimensions: ({width}, {height}), Format: {qimage.format()}")
-            raise ValueError(f"Byte count mismatch: got {byte_count} but expected {expected_size}")
-
-        ptr = qimage.bits()
-
-        # Convert memoryview to a numpy array considering the complete data with padding
-        arr = np.array(ptr).reshape((height, bytes_per_line))
-        # Exclude the padding bytes, keeping only the relevant image data
-        arr = arr[:, :width * 3]
-        # Reshape to the correct dimensions without the padding bytes
-        arr = arr.reshape((height, width, 3))
-
-        return arr
+        # 4. Convert back to BGR for OpenCV callers
+        return cv2.cvtColor(np.array(small), cv2.COLOR_RGB2BGRA)
 
     def save_image(self, output_path):
         final_image = self.render_to_image()

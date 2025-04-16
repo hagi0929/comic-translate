@@ -19,16 +19,16 @@ class TextRenderingSettings:
     font_family: str
     min_font_size: int
     max_font_size: int
-    color: str
+    color: (int, int, int)
     upper_case: bool
     outline: bool
-    outline_color: str
+    outline_color: (int, int, int)
     outline_width: str
     bold: bool
     italic: bool
     underline: bool
     line_spacing: str
-    direction: Qt.LayoutDirection
+    direction: str
 
 def cv2_to_pil(cv2_image: np.ndarray):
     # Convert color channels from BGR to RGB
@@ -183,39 +183,24 @@ def pyside_word_wrap(text: str, font_input: str, roi_width: int, roi_height: int
         font.setUnderline(underline)
 
         return font
-    
-    def eval_metrics(txt: str, font_sz: float) -> Tuple[float, float]:
-        """Quick helper function to calculate width/height of text using QTextDocument."""
-        
-        # Create a QTextDocument
-        doc = QTextDocument()
-        doc.setDefaultFont(prepare_font(font_sz))
-        doc.setPlainText(txt)
 
-        # Set text direction
-        text_option = QTextOption()
-        text_option.setTextDirection(direction)
-        doc.setDefaultTextOption(text_option)
-        
-        # Apply line spacing
-        cursor = QTextCursor(doc)
-        cursor.select(QTextCursor.SelectionType.Document)
-        block_format = QTextBlockFormat()
-        spacing = line_spacing * 100
-        block_format.setLineHeight(spacing, QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
-        block_format.setAlignment(alignment)
-        cursor.mergeBlockFormat(block_format)
-        
-        # Get the size of the document
-        size = doc.size()
-        width, height = size.width(), size.height()
-        
-        # Add outline width to the size
-        if outline_width > 0:
-            width += 2 * outline_width
-            height += 2 * outline_width
-        
-        return width, height
+    def eval_metrics(txt: str, font_sz: int) -> Tuple[int, int]:
+        """
+        Return (width, height) of *txt* rendered at *font_sz*.
+        No Qt, no extra knobs — just Pillow’s builtin text measurement.
+        """
+
+        # 1. Pick a font.  Replace with any .ttf path you like.
+        font = ImageFont.truetype("arial.ttf", font_sz)
+
+        # 2. Create a 1‑pixel image solely for measurement.
+        img = Image.new("RGB", (1, 1))
+        draw = ImageDraw.Draw(img)
+
+        # 3. Pillow gives the bounding box in one call.
+        left, top, right, bottom = draw.multiline_textbbox((0, 0), txt, font=font)
+
+        return right - left, bottom - top
 
     mutable_message = text
     font_size = init_font_size

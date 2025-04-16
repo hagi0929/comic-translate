@@ -39,7 +39,7 @@ language_codes = {
     }
 
 def get_layout_direction(language: str) -> Qt.LayoutDirection:
-    return Qt.LayoutDirection.RightToLeft if language == 'Arabic' else Qt.LayoutDirection.LeftToRight
+    return "rtl" if language == 'Arabic' else "ltr"
 
 
 inpaint_map = {

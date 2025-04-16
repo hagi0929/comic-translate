@@ -72,7 +72,8 @@ class ComicTranslate:
 
             # Load the image from the temp file
             cv2_image = cv2.imread(current_temp_path)
-            cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
+            cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGBA)
+            cv2_image = cv2_image.convert('RGBA')
 
             if cv2_image is not None:
                 return cv2_image
@@ -81,7 +82,11 @@ class ComicTranslate:
         # load from the original file path
         try:
             cv2_image = cv2.imread(file_path)
-            cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
+            cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGBA)
+            self.image_states[file_path] = {
+                'viewer_state': {},
+                'blk_list': None,
+            }
             return cv2_image
         except Exception as e:
             print(f"Error loading image {file_path}: {str(e)}")
@@ -139,14 +144,14 @@ class ComicTranslate:
             font_family = "Noto Sans",
             min_font_size = 25,
             max_font_size = 40,
-            color = "black",
+            color = (0, 0, 0),
             upper_case = False,
             outline = True,
-            outline_color = "white",
+            outline_color = (255, 255, 255),
             outline_width = "1.5",
             bold = True,
             italic = False,
             underline = False,
             line_spacing = "1",
-            direction = direction
+            direction = "direction"
         )

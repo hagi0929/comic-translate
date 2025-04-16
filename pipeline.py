@@ -72,6 +72,10 @@ class ComicTranslatePipeline:
                         archive_bname = os.path.splitext(os.path.basename(archive_path))[0]
 
             image = cv2.imread(image_path)
+            self.main_page.image_states[image_path] = {
+                'viewer_state': {},
+                'blk_list': None,
+            }
 
             # Text Block Detection
             # self.main_page.progress_update.emit(index, total_images, 1, 10, False)
@@ -91,7 +95,6 @@ class ComicTranslatePipeline:
 
             if not blk_list:
                 self.skip_save(directory, timestamp, base_name, extension, archive_bname, image)
-                self.main_page.image_skipped.emit(image_path, "Text Blocks", "")
                 self.log_skipped_image(directory, timestamp, image_path)
                 continue
 
@@ -106,7 +109,6 @@ class ComicTranslatePipeline:
                 error_message = str(e)
                 print(error_message)
                 self.skip_save(directory, timestamp, base_name, extension, archive_bname, image)
-                self.main_page.image_skipped.emit(image_path, "OCR", error_message)
                 self.log_skipped_image(directory, timestamp, image_path)
                 continue
 
@@ -130,13 +132,14 @@ class ComicTranslatePipeline:
 
             inpaint_input_img = self.inpainter_cache(image, mask, config)
             inpaint_input_img = cv2.convertScaleAbs(inpaint_input_img)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
 
             # Saving cleaned image
             self.main_page.image_history[image_path] = [image_path]
             self.main_page.current_history_index[image_path] = 0
             # self.main_page.image_processed.emit(index, inpaint_input_img, image_path)
 
-            inpaint_input_img = cv2.cvtColor(inpaint_input_img, cv2.COLOR_BGR2RGB)
+            inpaint_input_img = cv2.cvtColor(inpaint_input_img, cv2.COLOR_BGR2RGBA)
 
             if export_settings['export_inpainted_image']:
                 path = os.path.join(directory, f"comic_translate_{timestamp}", "cleaned_images", archive_bname)
@@ -158,7 +161,6 @@ class ComicTranslatePipeline:
                 error_message = str(e)
                 print(error_message)
                 self.skip_save(directory, timestamp, base_name, extension, archive_bname, image)
-                self.main_page.image_skipped.emit(image_path, "Translator", error_message)
                 self.log_skipped_image(directory, timestamp, image_path)
                 continue
 
@@ -172,14 +174,12 @@ class ComicTranslatePipeline:
                 
                 if (not raw_text_obj) or (not translated_text_obj):
                     self.skip_save(directory, timestamp, base_name, extension, archive_bname, image)
-                    self.main_page.image_skipped.emit(image_path, "Translator", "")
                     self.log_skipped_image(directory, timestamp, image_path)
                     continue
             except json.JSONDecodeError as e:
                 # Handle invalid JSON
                 error_message = str(e)
                 self.skip_save(directory, timestamp, base_name, extension, archive_bname, image)
-                self.main_page.image_skipped.emit(image_path, "Translator", error_message)
                 self.log_skipped_image(directory, timestamp, image_path)
                 continue
 
@@ -220,7 +220,7 @@ class ComicTranslatePipeline:
             italic = render_settings.italic
             underline = render_settings.underline
             # alignment_id = render_settings.alignment_id
-            alignment = QtCore.Qt.AlignmentFlag.AlignCenter
+            alignment = "center"
             direction = render_settings.direction
             text_items_state = []
             for blk in blk_list:
@@ -238,8 +238,8 @@ class ComicTranslatePipeline:
                 print("238", translation)
                 print("hello")
                 # Display text if on current page
-                if index == self.main_page.curr_img_idx:
-                    self.main_page.blk_rendered.emit(translation, font_size, blk)
+                # if index == self.main_page.curr_img_idx:
+                #     self.main_page.blk_rendered.emit(translation, font_size, blk)
 
                 if any(lang in trg_lng_cd.lower() for lang in ['zh', 'ja', 'th']):
                     translation = translation.replace(' ', '')
@@ -269,7 +269,7 @@ class ComicTranslatePipeline:
 
             self.main_page.image_states[image_path]['viewer_state'].update({
                 'text_items_state': text_items_state
-                })
+            })
             
             # self.main_page.progress_update.emit(index, total_images, 9, 10, False)
             # if self.main_page.current_worker and self.main_page.current_worker.is_cancelled:
@@ -286,8 +286,9 @@ class ComicTranslatePipeline:
                 os.makedirs(render_save_dir, exist_ok=True)
             sv_pth = os.path.join(render_save_dir, f"{base_name}_translated{extension}")
 
-            im = cv2.cvtColor(inpaint_input_img, cv2.COLOR_RGB2BGR)
+            im = cv2.cvtColor(inpaint_input_img, cv2.COLOR_RGB2BGRA)
             renderer = ImageSaveRenderer(im)
+            print("291")
             viewer_state = self.main_page.image_states[image_path]['viewer_state']
             renderer.add_state_to_image(viewer_state)
             renderer.save_image(sv_pth)
