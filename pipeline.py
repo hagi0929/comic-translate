@@ -3,6 +3,7 @@ import cv2, shutil
 from datetime import datetime
 from typing import List
 
+from PySide6 import QtCore
 from PySide6.QtGui import QColor
 
 from modules.detection.processor import TextBlockDetector
@@ -208,32 +209,34 @@ class ComicTranslatePipeline:
             get_best_render_area(blk_list, image, inpaint_input_img)
 
             font = render_settings.font_family
-            font_color = QColor(render_settings.color)
+            font_color = render_settings.color
 
             max_font_size = render_settings.max_font_size
             min_font_size = render_settings.min_font_size
             line_spacing = float(render_settings.line_spacing) 
             outline_width = float(render_settings.outline_width)
-            outline_color = QColor(render_settings.outline_color) 
+            outline_color = render_settings.outline_color
             bold = render_settings.bold
             italic = render_settings.italic
             underline = render_settings.underline
             # alignment_id = render_settings.alignment_id
-            # alignment = self.main_page.button_to_alignment[alignment_id]
+            alignment = QtCore.Qt.AlignmentFlag.AlignCenter
             direction = render_settings.direction
             text_items_state = []
             for blk in blk_list:
                 x1, y1, width, height = blk.xywh
 
                 translation = blk.translation
-                print(translation)
+                print("230", translation)
                 if not translation or len(translation) == 1:
                     continue
 
                 translation, font_size = pyside_word_wrap(translation, font, width, height,
                                                         line_spacing, outline_width, bold, italic, underline,
-                                                        "alignment", direction, max_font_size, min_font_size)
-                
+                                                        alignment, direction, max_font_size, min_font_size)
+
+                print("238", translation)
+                print("hello")
                 # Display text if on current page
                 if index == self.main_page.curr_img_idx:
                     self.main_page.blk_rendered.emit(translation, font_size, blk)
@@ -246,7 +249,7 @@ class ComicTranslatePipeline:
                 'font_family': font,
                 'font_size': font_size,
                 'text_color': font_color,
-                # 'alignment': alignment,
+                'alignment': alignment,
                 'line_spacing': line_spacing,
                 'outline_color': outline_color,
                 'outline_width': outline_width,
@@ -275,12 +278,9 @@ class ComicTranslatePipeline:
 
             # Saving blocks with texts to history
             self.main_page.image_states[image_path].update({
-                'blk_list': blk_list                   
+                'blk_list': blk_list
             })
 
-            if index == self.main_page.curr_img_idx:
-                self.main_page.blk_list = blk_list
-                
             render_save_dir = os.path.join(directory, f"comic_translate_{timestamp}", "translated_images", archive_bname)
             if not os.path.exists(render_save_dir):
                 os.makedirs(render_save_dir, exist_ok=True)

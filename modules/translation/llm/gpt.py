@@ -32,7 +32,7 @@ class GPTTranslation(BaseLLMTranslation):
         super().initialize(settings, source_lang, target_lang, **kwargs)
         
         self.model_name = model_name
-        credentials = settings.get_credentials(settings.ui.tr('Open AI GPT'))
+        credentials = settings.get_credentials("OpenAI")
         self.api_key = credentials.get('api_key', '')
         self.model = MODEL_MAP.get(self.model_name)
     

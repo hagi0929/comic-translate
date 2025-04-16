@@ -28,7 +28,6 @@ for model in mandatory_models:
 class ComicTranslate:
     def __init__(self, parent=None):
         self.image_files = []
-        self.curr_img_idx = -1
         self.image_states = {}
 
         self.blk_list = []

@@ -203,7 +203,7 @@ def pyside_word_wrap(text: str, font_input: str, roi_width: int, roi_height: int
         block_format = QTextBlockFormat()
         spacing = line_spacing * 100
         block_format.setLineHeight(spacing, QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
-        # block_format.setAlignment(alignment)
+        block_format.setAlignment(alignment)
         cursor.mergeBlockFormat(block_format)
         
         # Get the size of the document
