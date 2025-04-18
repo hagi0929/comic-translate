@@ -51,6 +51,8 @@ class LaMa(InpaintModel):
         mask: [H, W]
         return: BGR IMAGE
         """
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
         image = norm_img(image)
         mask = norm_img(mask)
 

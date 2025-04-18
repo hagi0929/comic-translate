@@ -1,4 +1,6 @@
 import os
+
+import cv2
 import numpy as np
 
 from ..base import OCREngine
@@ -52,7 +54,9 @@ class MangaOCREngine(OCREngine):
                 if x1 < x2 and y1 < y2 and x1 >= 0 and y1 >= 0 and x2 <= img.shape[1] and y2 <= img.shape[0]:
                     # Crop image and run OCR
                     cropped_img = img[y1:y2, x1:x2]
+                    cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
                     blk.text = self.model(cropped_img)
+
                 else:
                     print('Invalid textbbox to target img')
                     blk.text = ""

@@ -14,6 +14,7 @@ from datetime import datetime
 from app.ui.settings.settings_page import SettingsPage
 from modules.detection.processor import TextBlockDetector
 from modules.detection.utils.general import do_rectangles_overlap, get_inpaint_bboxes
+from modules.inpainting.lama import LaMa
 from modules.ocr.processor import OCRProcessor
 from modules.translation.processor import Translator
 from modules.utils.save_renderer import ImageSaveRenderer
@@ -89,8 +90,7 @@ class TranslatePipeline:
         self.cached_inpainter_key = None
         device = 'cuda' if self.main_page.settings_page.is_gpu_enabled() else 'cpu'
         inpainter_key = self.main_page.settings_page.get_tool_selection('inpainter')
-        self.inpainter = inpaint_map[inpainter_key]
-        self.inpainter(device)
+        self.inpainter = LaMa(device)
         self.translator = Translator(self.main_page, self.main_page.source_lang, self.main_page.target_lang)
 
         self.renderer = ImageSaveRenderer()
@@ -211,7 +211,7 @@ class TranslatePipeline:
         config = get_config(self.main_page.settings_page)
         mask = generate_mask(image.raw_data, image.blk_list)
 
-        inpaint_input_img = self.inpainter_cache(image, mask, config)
+        inpaint_input_img = self.inpainter.forward(image.raw_data, mask, config)
         inpaint_input_img = cv2.convertScaleAbs(inpaint_input_img)
         inpaint_input_img = cv2.cvtColor(inpaint_input_img, cv2.COLOR_BGR2RGBA)
         image.cleaned_image = inpaint_input_img

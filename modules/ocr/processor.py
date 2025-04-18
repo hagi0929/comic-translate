@@ -45,7 +45,6 @@ class OCRProcessor:
         """
         # Set language code for each text block
         self._set_source_language(blk_list)
-        
         try:
             # Get appropriate OCR engine from factory
             engine = OCRFactory.create_engine(self.settings, self.source_lang, self.ocr_key)
