@@ -41,6 +41,9 @@ class SettingsPage:
     def get_language(self) -> str:
         return os.getenv("LANGUAGE", "English")
 
+    def get_max_threads(self) -> str:
+        return os.getenv("MAX_THREADS", 5)
+
     def get_tool_selection(self, tool_type: str) -> str:
         mapping = {
             "translator": os.getenv("TOOLS__TRANSLATOR", "GPT-4o"),

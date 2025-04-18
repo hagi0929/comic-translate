@@ -22,8 +22,7 @@ _supports_direction = features.check("raqm")
 
 
 class ImageSaveRenderer:
-    def __init__(self, cv2_image):
-        self._base_rgb = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGBA)
+    def __init__(self):
         self._text_blocks: List[Dict[str, Any]] = []
 
     def _draw_text_block(self, canvas: Image.Image, block: Dict[str, Any], sf: int) -> None:
@@ -101,15 +100,15 @@ class ImageSaveRenderer:
         """Collect text blocks for later rendering."""
         self._text_blocks.extend(state.get("text_items_state", []))
 
-    def render_to_image(self, scale_factor: int = 1):
+    def render_to_image(self, base_rgb, scale_factor: int = 1):
         """
         Draw all collected text blocks at *scale_factor*× resolution,
         then downsample for smoother edges.
         Returns an **OpenCV BGR** image.
         """
         # 1. Upscale base image for nicer antialiasing
-        h, w = self._base_rgb.shape[:2]
-        big = Image.fromarray(self._base_rgb).resize(
+        h, w = base_rgb.shape[:2]
+        big = Image.fromarray(base_rgb).resize(
             (w * scale_factor, h * scale_factor),
             resample=Image.Resampling.LANCZOS,
         )

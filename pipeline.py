@@ -113,7 +113,6 @@ class ComicTranslatePipeline:
                 continue
 
             # Clean Image of text
-            export_settings = settings_page.get_export_settings()
 
             if self.inpainter_cache is None or self.cached_inpainter_key != settings_page.get_tool_selection('inpainter'):
                 device = 'cuda' if settings_page.is_gpu_enabled() else 'cpu'
