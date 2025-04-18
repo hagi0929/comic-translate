@@ -28,12 +28,6 @@ from modules.utils.translator_utils import format_translations, is_there_text, g
 from modules.rendering.render import TextRenderingSettings, get_best_render_area, pyside_word_wrap
 from pipeline import ComicTranslatePipeline
 
-ct = ComicTranslate()
-images = ct.load_initial_image("./test-data")
-ct.on_initial_image_loaded(images)
-ct.start_batch_process()
-
-
 def get_image_path(folder_path: str):
     image_paths = []
     for root, _, files in os.walk(folder_path):
@@ -102,7 +96,7 @@ class TranslatePipeline:
         self.renderer = ImageSaveRenderer()
     def process_image(self, image: Image):
         # detect text blocks
-        self.detect_text_block(image.raw_data)
+        self.detect_text_block(image)
         # ocr
         self.ocr_image(image)
         # clean image
@@ -224,17 +218,19 @@ class TranslatePipeline:
 
     def start_batch(self):
 
-        for image_path in self.main_page.images:
-            self.process_image(image_path)
+        for image_path in self.main_page.image_paths:
+            image = self.main_page.images[image_path]
+            self.process_image(image)
             self.main_page.logger.update_status(image_path, "done")
 
     def detect_text_block(self, image):
-        blk_list = self.detector.detect(image)
+        blk_list = self.detector.detect(image.raw_data)
         # TODO: add a check for empty blk_list
         image.blk_list = blk_list
 
     def ocr_image(self,image: Image):
-        image.blk_list = self.ocr.process(image.raw_data, image.blk_list)
+        result = self.ocr.process(image.raw_data, image.blk_list)
+        image.blk_list = result
 
 class ComicTranslator:
     def __init__(self, comic_path, output_path, source_lang, target_lang):
@@ -248,16 +244,20 @@ class ComicTranslator:
         self.comic_path = comic_path
         self.output_path = output_path
         self.settings_page = SettingsPage()
-        self.processor = ComicTranslatePipeline(self)
         self.logger = Logger(self.image_paths)
         # TODO: make this dynamic
         self.num_of_threads = self.settings_page.get_max_threads()
         self.source_lang = source_lang
         self.target_lang = target_lang
+        self.processor = TranslatePipeline(self)
 
     def on_initial_image_loaded(self, images):
         self.images = images
 
     def start_batch_process(self):
         self.processor.start_batch()
+
+ct = ComicTranslator("./test-data", "./test-data2", "Japanese", "Korean")
+ct.start_batch_process()
+
 

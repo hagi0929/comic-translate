@@ -18,8 +18,7 @@ class OCRProcessor:
         self.main_page = None
         self.settings = None
         self.source_lang = None
-        self.source_lang_english = None
-        
+
     def initialize(self, main_page: Any, source_lang: str) -> None:
         """
         Initialize the OCR processor with settings and language.
@@ -31,12 +30,8 @@ class OCRProcessor:
         self.main_page = main_page
         self.settings = main_page.settings_page
         self.source_lang = source_lang
-        self.source_lang_english = self._get_english_lang(source_lang)
         self.ocr_key = self._get_ocr_key(self.settings.get_tool_selection('ocr'))
         
-    def _get_english_lang(self, translated_lang: str) -> str:
-        return self.main_page.lang_mapping.get(translated_lang, translated_lang)
-
     def process(self, img: np.ndarray, blk_list: list[TextBlock]) -> list[TextBlock]:
         """
         Process image with appropriate OCR engine.
@@ -53,7 +48,7 @@ class OCRProcessor:
         
         try:
             # Get appropriate OCR engine from factory
-            engine = OCRFactory.create_engine(self.settings, self.source_lang_english, self.ocr_key)
+            engine = OCRFactory.create_engine(self.settings, self.source_lang, self.ocr_key)
             res = engine.process_image(img, blk_list)
             print(res)
             # Process image with selected engine
@@ -64,7 +59,7 @@ class OCRProcessor:
             return blk_list
             
     def _set_source_language(self, blk_list: list[TextBlock]) -> None:
-        source_lang_code = language_codes.get(self.source_lang_english, 'en')
+        source_lang_code = language_codes.get(self.source_lang, 'ja')
         for blk in blk_list:
             blk.source_lang = source_lang_code
 

@@ -67,7 +67,7 @@ class Translator:
         Returns:
             Language name in English
         """
-        return main_page.lang_mapping.get(translated_lang, translated_lang)
+        return translated_lang
     
     def translate(self, blk_list: list[TextBlock], image: np.ndarray = None, extra_context: str = "") -> list[TextBlock]:
         """
