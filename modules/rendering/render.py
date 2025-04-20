@@ -16,7 +16,6 @@ from dataclasses import dataclass
 
 @dataclass
 class TextRenderingSettings:
-    alignment_id: int
     font_family: str
     min_font_size: int
     max_font_size: int
@@ -29,7 +28,7 @@ class TextRenderingSettings:
     italic: bool
     underline: bool
     line_spacing: str
-    direction: Qt.LayoutDirection
+    direction: str
 
 
 def cv2_to_pil(cv2_image: np.ndarray):

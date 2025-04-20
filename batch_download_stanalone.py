@@ -2,9 +2,13 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from PIL import ImageDraw
+from PIL import Image
+from PIL import ImageFont
+
 from controller import ComicTranslate
 import os
-from typing import List, Union
+from typing import List, Union, Optional
 
 import cv2, shutil
 import tempfile
@@ -20,7 +24,6 @@ from modules.inpainting.lama import LaMa
 from modules.inpainting.mi_gan import MIGAN
 from modules.ocr.processor import OCRProcessor
 from modules.translation.processor import Translator
-from modules.utils.save_renderer import ImageSaveRenderer
 from modules.utils.text_item import OutlineInfo, OutlineType
 from modules.utils.textblock import TextBlock
 from modules.utils.file_handler import FileHandler
@@ -40,6 +43,26 @@ def get_image_path(folder_path: str):
                 image_paths.append(os.path.join(root, file))
     return image_paths
 
+def wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw) -> List[str]:
+    """
+    Wrap `text` into lines that fit within `max_width` pixels given `font` and `draw`.
+    """
+    words = text.split()
+    lines: List[str] = []
+    if not words:
+        return lines
+    line = words[0]
+    for word in words[1:]:
+        test_line = f"{line} {word}"
+        width, _ = draw.textsize(test_line, font=font)
+        if width <= max_width:
+            line = test_line
+        else:
+            lines.append(line)
+            line = word
+    lines.append(line)
+    return lines
+
 def load_image(file_path: str):
     cv2_image = cv2.imread(file_path)
     cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGBA)
@@ -49,7 +72,7 @@ def load_image(file_path: str):
     return cv2_image
 
 @dataclass
-class Image:
+class ImageObj:
     def __init__(self, path):
         self.raw_data = None
         self.path = path
@@ -96,8 +119,7 @@ class TranslatePipeline:
         self.inpainter = LaMa(device)
         self.translator = Translator(self.main_page, self.main_page.source_lang, self.main_page.target_lang)
 
-        self.renderer = ImageSaveRenderer()
-    def process_image(self, image: Image):
+    def process_image(self, image: ImageObj):
         # detect text blocks
         self.detect_text_block(image)
         # ocr
@@ -109,7 +131,7 @@ class TranslatePipeline:
         # render
         self.render_image(image)
 
-    def translate_blocks(self, image: Image):
+    def translate_blocks(self, image: ImageObj):
         extra_context = self.main_page.settings_page.get_llm_settings()['extra_context']
         image.blk_list = self.translator.translate(image.blk_list, image.raw_data, extra_context)
 
@@ -125,6 +147,118 @@ class TranslatePipeline:
             # Handle invalid JSON
             error_message = str(e)
             print(f"Error decoding JSON: {error_message}")
+
+    def render_text_blocks(
+            self,
+            image_np: np.ndarray,
+            blocks: List[TextBlock],
+            settings: TextRenderingSettings
+    ) -> np.ndarray:
+        # Convert numpy array to PIL Image (assume BGR if OpenCV import used)
+        if image_np.dtype != np.uint8:
+            raise ValueError("Expected image_np with dtype=uint8")
+        # Detect BGR vs RGB by channel ordering heuristic (optional)
+        # Here we assume BGR if coming from cv2
+        image_pil = Image.fromarray(cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(image_pil)
+
+        for block in blocks:
+            # Merge per-block overrides
+            min_fs = block.min_font_size if block.min_font_size > 0 else settings.min_font_size
+            max_fs = block.max_font_size if block.max_font_size > 0 else settings.max_font_size
+            if min_fs > max_fs:
+                min_fs, max_fs = settings.min_font_size, settings.max_font_size
+            fill_color = block.font_color or settings.color
+            outline = settings.outline
+            outline_color = settings.outline_color
+            outline_width = settings.outline_width
+            underline = settings.underline
+            line_spacing = settings.line_spacing * block.line_spacing
+            alignment = block.alignment.lower()
+            direction = settings.direction.lower()
+
+            # Inpaint erase: fill with white for each inpaint bbox
+            if block.inpaint_bboxes is not None:
+                for ib in block.inpaint_bboxes:
+                    x, y, w, h = ib
+                    draw.rectangle([x, y, x + w, y + h], fill=(255, 255, 255))
+
+            # Block dimensions
+            x1, y1, x2, y2 = block.xyxy
+            box_w, box_h = x2 - x1, y2 - y1
+
+            # Find the largest fitting font size
+            chosen_font = None
+            chosen_size = min_fs
+            lines: List[str] = []
+            for fs in range(max_fs, min_fs - 1, -1):
+                try:
+                    font = ImageFont.truetype(settings.font_family, fs)
+                except IOError:
+                    font = ImageFont.load_default()
+                test_lines = wrap_text(block.translation, font, box_w, draw)
+                # Total text height
+                heights = [settings. for ln in test_lines]
+                total_h = sum(heights) + int((len(test_lines) - 1) * fs * (line_spacing - 1))
+                if total_h <= box_h:
+                    chosen_font = font
+                    chosen_size = fs
+                    lines = test_lines
+                    break
+            if chosen_font is None:
+                try:
+                    chosen_font = ImageFont.truetype(settings.font_family, min_fs)
+                except IOError:
+                    chosen_font = ImageFont.load_default()
+                lines = wrap_text(block.translation, chosen_font, box_w, draw)
+
+            # Vertical centering
+            line_heights = [draw.textsize(ln, font=chosen_font)[1] for ln in lines]
+            total_text_height = sum(line_heights) + int((len(lines) - 1) * chosen_size * (line_spacing - 1))
+            y_offset = y1 + max(0, (box_h - total_text_height) // 2)
+
+            # Draw lines
+            for i, ln in enumerate(lines):
+                lw, lh = draw.textsize(ln, font=chosen_font)
+                # Horizontal alignment
+                align = alignment
+                if direction == 'rtl':
+                    if align == 'left':
+                        align = 'right'
+                    elif align == 'right':
+                        align = 'left'
+                if align == 'left':
+                    x = x1
+                elif align == 'center':
+                    x = x1 + (box_w - lw) // 2
+                else:
+                    x = x2 - lw
+                y = y_offset + int(i * chosen_size * line_spacing)
+
+                # Outline or regular text
+                if outline and outline_width > 0:
+                    draw.text(
+                        (x, y), ln,
+                        font=chosen_font,
+                        fill=fill_color,
+                        stroke_width=outline_width,
+                        stroke_fill=outline_color
+                    )
+                else:
+                    draw.text((x, y), ln, font=chosen_font, fill=fill_color)
+
+                # Underline
+                if underline:
+                    underline_y = y + lh + 1
+                    draw.line(
+                        [(x, underline_y), (x + lw, underline_y)],
+                        fill=fill_color,
+                        width=max(1, chosen_size // 15)
+                    )
+
+        # Convert back to numpy array (BGR)
+        result = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+        return result
 
     def render_image(self, image: Image):
         # TODO: make text rendering settings dynamic
