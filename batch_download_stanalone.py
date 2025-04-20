@@ -1,9 +1,10 @@
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from controller import ComicTranslate
 import os
-from typing import List
+from typing import List, Union
 
 import cv2, shutil
 import tempfile
@@ -124,7 +125,23 @@ class TranslatePipeline:
             print(f"Error decoding JSON: {error_message}")
 
     def render_image(self, image: Image):
-        render_settings = self.main_page.render_settings()
+        # TODO: make text rendering settings dynamic
+        render_settings = TextRenderingSettings(
+            alignment_id = 0,
+            font_family = "Noto Sans",
+            min_font_size = 25,
+            max_font_size = 40,
+            color = (0, 0, 0),
+            upper_case = False,
+            outline = True,
+            outline_color = (255, 255, 255),
+            outline_width = "1.5",
+            bold = True,
+            italic = False,
+            underline = False,
+            line_spacing = "1",
+            direction = "direction"
+        )
         upper_case = render_settings.upper_case
         outline = render_settings.outline
         trg_lng_cd = get_language_code(self.main_page.target_lang)
@@ -196,25 +213,40 @@ class TranslatePipeline:
         #     break
 
 
-        render_save_dir = os.path.join(directory, f"comic_translate_{timestamp}", "translated_images", archive_bname)
-        if not os.path.exists(render_save_dir):
-            os.makedirs(render_save_dir, exist_ok=True)
-        sv_pth = os.path.join(render_save_dir, f"{base_name}_translated{extension}")
-
-        im = cv2.cvtColor(inpaint_input_img, cv2.COLOR_RGB2BGRA)
-        viewer_state = self.main_page.image_states[image_path]['viewer_state']
-        self.renderer.add_state_to_image(viewer_state)
-        self.renderer.save_image(sv_pth)
+        image.translated_image = self.renderer.render_to_image(image.cleaned_image)
         # self.main_page.progress_update.emit(index, total_images, 10, 10, False)
 
     def clean_image(self, image: Image):
         config = get_config(self.main_page.settings_page)
         mask = generate_mask(image.raw_data, image.blk_list)
 
-        inpaint_input_img = self.inpainter.forward(image.raw_data, mask, config)
+        inpaint_input_img = self.inpainter(cv2.cvtColor(image.raw_data, cv2.COLOR_BGR2RGB), mask, config)
         inpaint_input_img = cv2.convertScaleAbs(inpaint_input_img)
         inpaint_input_img = cv2.cvtColor(inpaint_input_img, cv2.COLOR_BGR2RGBA)
         image.cleaned_image = inpaint_input_img
+
+    def save_image(self, image_obj, target_folder: str, overwrite: bool):
+        os.makedirs(target_folder, exist_ok=True)
+
+        filename = os.path.basename(getattr(image_obj, 'path', ''))
+        if not filename:
+            raise ValueError("Cannot derive filename; 'path' attribute is missing or empty on image object.")
+
+        target_path = os.path.join(target_folder, filename)
+
+        if os.path.exists(target_path) and not overwrite:
+            raise FileExistsError(f"File '{target_path}' exists and overwrite=False.")
+
+        img_data = None
+        if hasattr(image_obj, 'translated_image') and image_obj.translated_image is not None:
+            img_data = image_obj.translated_image
+        elif hasattr(image_obj, 'raw_data') and image_obj.raw_data is not None:
+            img_data = image_obj.raw_data
+        else:
+            raise ValueError(f"No image data on object for saving (path: {getattr(image_obj, 'path', '<unknown>')}).")
+
+        if not cv2.imwrite(target_path, img_data):
+            raise IOError(f"Failed to write image to '{target_path}'.")
 
     def start_batch(self):
 
@@ -222,6 +254,9 @@ class TranslatePipeline:
             image = self.main_page.images[image_path]
             self.process_image(image)
             self.main_page.logger.update_status(image_path, "done")
+            self.save_image(image, self.main_page.output_path, True)
+            # save the translated image to a target path
+            
 
     def detect_text_block(self, image):
         blk_list = self.detector.detect(image.raw_data)
