@@ -17,6 +17,7 @@ __all__ = ['TextWrapper', 'wrap', 'fill', 'dedent', 'indent', 'shorten']
 # some Unicode spaces (like \u00a0) are non-breaking whitespaces.
 _whitespace = '\t\n\x0b\x0c\r '
 
+
 class TextWrapper:
     """
     Object for wrapping/filling text.  The public interface consists of
@@ -95,7 +96,7 @@ class TextWrapper:
             )
         )''' % {'wp': word_punct, 'lt': letter,
                 'ws': whitespace, 'nws': nowhitespace},
-        re.VERBOSE)
+                            re.VERBOSE)
     del word_punct, letter, nowhitespace
 
     # This less funky little regex just split on recognized spaces. E.g.
@@ -107,10 +108,10 @@ class TextWrapper:
 
     # XXX this is not locale- or charset-aware -- string.lowercase
     # is US-ASCII only (and therefore English-only)
-    sentence_end_re = re.compile(r'[a-z]'             # lowercase letter
-                                 r'[\.\!\?]'          # sentence-ending punct.
-                                 r'[\"\']?'           # optional end-of-quote
-                                 r'\Z')               # end of chunk
+    sentence_end_re = re.compile(r'[a-z]'  # lowercase letter
+                                 r'[\.\!\?]'  # sentence-ending punct.
+                                 r'[\"\']?'  # optional end-of-quote
+                                 r'\Z')  # end of chunk
 
     def __init__(self,
                  width=70,
@@ -141,7 +142,6 @@ class TextWrapper:
         self.placeholder = placeholder
         self.hyphenate_broken_words = hyphenate_broken_words
 
-
     # -- Private methods -----------------------------------------------
     # (possibly useful for subclasses to override)
 
@@ -157,7 +157,6 @@ class TextWrapper:
         if self.replace_whitespace:
             text = text.translate(self.unicode_whitespace_trans)
         return text
-
 
     def _split(self, text):
         """_split(text : string) -> [string]
@@ -177,7 +176,7 @@ class TextWrapper:
         if self.break_on_hyphens is True:
             chunks = self.wordsep_re.split(text)
         else:
-            chunks = self.wordsep_simple_re.split(text) 
+            chunks = self.wordsep_simple_re.split(text)
         chunks = [c for c in chunks if c]
 
         return chunks
@@ -193,13 +192,13 @@ class TextWrapper:
         """
         i = 0
         patsearch = self.sentence_end_re.search
-        while i < len(chunks)-1:
-            if chunks[i+1] == " " and patsearch(chunks[i]):
-                chunks[i+1] = "  "
+        while i < len(chunks) - 1:
+            if chunks[i + 1] == " " and patsearch(chunks[i]):
+                chunks[i + 1] = "  "
                 i += 2
             else:
                 i += 1
-                
+
     def _handle_long_word(self, reversed_chunks, cur_line, cur_len, width):
         """_handle_long_word(chunks : [string],
                             cur_line : [string],
@@ -226,12 +225,12 @@ class TextWrapper:
                 hyphen = chunk.rfind('-', 0, space_left)
                 if hyphen > 0 and any(c != '-' for c in chunk[:hyphen]):
                     end = hyphen + 1
-                    
+
             if chunk[:end]:
                 cur_line.append(chunk[:end])
-                # Now adds a hyphen whenever a long word is split to the next line 
+                # Now adds a hyphen whenever a long word is split to the next line
                 # unless certain chracters already exists at the split
-                if self.hyphenate_broken_words and chunk[:end][-1] not in ['-','.',',']:
+                if self.hyphenate_broken_words and chunk[:end][-1] not in ['-', '.', ',']:
                     cur_line.append('-')
             reversed_chunks[-1] = chunk[end:]
 
@@ -321,18 +320,18 @@ class TextWrapper:
 
             if cur_line:
                 if (self.max_lines is None or
-                    len(lines) + 1 < self.max_lines or
-                    (not chunks or
-                     self.drop_whitespace and
-                     len(chunks) == 1 and
-                     not chunks[0].strip()) and cur_len <= width):
+                        len(lines) + 1 < self.max_lines or
+                        (not chunks or
+                         self.drop_whitespace and
+                         len(chunks) == 1 and
+                         not chunks[0].strip()) and cur_len <= width):
                     # Convert current line back to a string and store it in
                     # list of all lines (return value).
                     lines.append(indent + ''.join(cur_line))
                 else:
                     while cur_line:
                         if (cur_line[-1].strip() and
-                            cur_len + len(self.placeholder) <= width):
+                                cur_len + len(self.placeholder) <= width):
                             cur_line.append(self.placeholder)
                             lines.append(indent + ''.join(cur_line))
                             break
@@ -395,6 +394,7 @@ def wrap(text, width=70, **kwargs):
     w = TextWrapper(width=width, **kwargs)
     return w.wrap(text)
 
+
 def fill(text, width=70, **kwargs):
     """Fill a single paragraph of text, returning a new string.
 
@@ -406,6 +406,7 @@ def fill(text, width=70, **kwargs):
     """
     w = TextWrapper(width=width, **kwargs)
     return w.fill(text)
+
 
 def shorten(text, width, **kwargs):
     """Collapse and truncate the given text to fit in the given width.
@@ -427,6 +428,7 @@ def shorten(text, width, **kwargs):
 
 _whitespace_only_re = re.compile('^[ \t]+$', re.MULTILINE)
 _leading_whitespace_re = re.compile('(^[ \t]*)(?:[^ \t\n])', re.MULTILINE)
+
 
 def dedent(text):
     """Remove any common leading whitespace from every line in `text`.
@@ -472,7 +474,7 @@ def dedent(text):
     if 0 and margin:
         for line in text.split("\n"):
             assert not line or line.startswith(margin), \
-                   "line = %r, margin = %r" % (line, margin)
+                "line = %r, margin = %r" % (line, margin)
 
     if margin:
         text = re.sub(r'(?m)^' + margin, '', text)
@@ -504,6 +506,6 @@ def indent(text, prefix, predicate=None):
 
 
 if __name__ == "__main__":
-    #print dedent("\tfoo\n\tbar")
-    #print dedent("  \thello there\n  \t  how are you?")
+    # print dedent("\tfoo\n\tbar")
+    # print dedent("  \thello there\n  \t  how are you?")
     print(dedent("Hello there.\n  This is indented."))

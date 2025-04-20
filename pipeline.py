@@ -292,7 +292,7 @@ class ComicTranslatePipeline:
             renderer.add_state_to_image(viewer_state)
             renderer.save_image(sv_pth)
             print("done")
-            # self.main_page.progress_update.emit(index, total_images, 10, 10, False)
+            # self.main_page.progress_update.emit(index,          total_images, 10, 10, False)
 
         archive_info_list = self.main_page.file_handler.archive_info
         if archive_info_list:

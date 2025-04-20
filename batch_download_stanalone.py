@@ -15,7 +15,9 @@ from datetime import datetime
 from app.ui.settings.settings_page import SettingsPage
 from modules.detection.processor import TextBlockDetector
 from modules.detection.utils.general import do_rectangles_overlap, get_inpaint_bboxes
+from modules.inpainting.aot import AOT
 from modules.inpainting.lama import LaMa
+from modules.inpainting.mi_gan import MIGAN
 from modules.ocr.processor import OCRProcessor
 from modules.translation.processor import Translator
 from modules.utils.save_renderer import ImageSaveRenderer
@@ -167,19 +169,12 @@ class TranslatePipeline:
             x1, y1, width, height = blk.xywh
 
             translation = blk.translation
-            print("230", translation)
             if not translation or len(translation) == 1:
                 continue
 
             translation, font_size = pyside_word_wrap(translation, font, width, height,
                                                       line_spacing, outline_width, bold, italic, underline,
                                                       alignment, direction, max_font_size, min_font_size)
-
-            print("238", translation)
-            print("hello")
-            # Display text if on current page
-            # if index == self.main_page.curr_img_idx:
-            #     self.main_page.blk_rendered.emit(translation, font_size, blk)
 
             if any(lang in trg_lng_cd.lower() for lang in ['zh', 'ja', 'th']):
                 translation = translation.replace(' ', '')
@@ -240,8 +235,6 @@ class TranslatePipeline:
         img_data = None
         if hasattr(image_obj, 'translated_image') and image_obj.translated_image is not None:
             img_data = image_obj.translated_image
-        elif hasattr(image_obj, 'raw_data') and image_obj.raw_data is not None:
-            img_data = image_obj.raw_data
         else:
             raise ValueError(f"No image data on object for saving (path: {getattr(image_obj, 'path', '<unknown>')}).")
 

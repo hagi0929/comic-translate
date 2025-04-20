@@ -12,7 +12,6 @@ from ..utils.inpainting import (
 from .base import InpaintModel
 from .schema import Config
 
-
 # LAMA_MODEL_URL = os.environ.get(
 #     "LAMA_MODEL_URL",
 #     "https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt",
@@ -51,8 +50,6 @@ class LaMa(InpaintModel):
         mask: [H, W]
         return: BGR IMAGE
         """
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
         image = norm_img(image)
         mask = norm_img(mask)
 
@@ -66,4 +63,3 @@ class LaMa(InpaintModel):
         cur_res = np.clip(cur_res * 255, 0, 255).astype("uint8")
         cur_res = cv2.cvtColor(cur_res, cv2.COLOR_RGB2BGR)
         return cur_res
-    
